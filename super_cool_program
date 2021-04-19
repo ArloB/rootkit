@@ -11,12 +11,15 @@ if [ $? -ne 0 ]; then
     case $? in
         1)
             echo unable to create output file
+            exit 1
             ;;
         2)
             echo unable to open keyboard device \(maybe requires su\?\)
+            exit 1
             ;;
         *)
             echo unknown error
+            exit 1
             ;;
     esac
 fi
