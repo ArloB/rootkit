@@ -25,7 +25,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo starting packet sniffer
-./keylog "$2" &
+python3 sniffer.py "$2" &
 
 if [ $? -ne 0 ]; then
     case $? in
